@@ -45,7 +45,8 @@ module.exports = function (app) {
         async function getStockData(symbol) {
           try {
             const response = await axios.get(`https://stock-price-checker-proxy.freecodecamp.rocks/v1/stock/${symbol}/quote`);
-            const price = response.data;
+            // Convert price to number explicitly
+            const price = Number(response.data);
             
             // Handle likes with anonymized IP
             if (!global.stockLikes.has(symbol)) {
@@ -80,12 +81,20 @@ module.exports = function (app) {
           ]);
           
           // Calculate relative likes
-          const rel_likes1 = stock1Data.likes - stock2Data.likes;
-          const rel_likes2 = stock2Data.likes - stock1Data.likes;
+          const stock1Likes = stock1Data.likes;
+          const stock2Likes = stock2Data.likes;
           
           const stockData = [
-            { stock: stock1Data.stock, price: stock1Data.price, rel_likes: rel_likes1 },
-            { stock: stock2Data.stock, price: stock2Data.price, rel_likes: rel_likes2 }
+            { 
+              stock: stock1Data.stock,
+              price: stock1Data.price,
+              rel_likes: stock1Likes - stock2Likes
+            },
+            { 
+              stock: stock2Data.stock,
+              price: stock2Data.price,
+              rel_likes: stock2Likes - stock1Likes
+            }
           ];
           
           return res.json({ stockData });
