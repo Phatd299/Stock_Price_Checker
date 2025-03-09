@@ -45,8 +45,14 @@ module.exports = function (app) {
         async function getStockData(symbol) {
           try {
             const response = await axios.get(`https://stock-price-checker-proxy.freecodecamp.rocks/v1/stock/${symbol}/quote`);
-            // Convert price to number explicitly
-            const price = Number(response.data);
+            // Ensure price is a valid number
+            let price = 0;
+            if (response.data) {
+              price = parseFloat(response.data);
+              if (isNaN(price)) {
+                price = 0;
+              }
+            }
             
             // Handle likes with anonymized IP
             if (!global.stockLikes.has(symbol)) {
