@@ -37,6 +37,10 @@ module.exports = function (app) {
   app.route('/api/stock-prices')
     .get(async function (req, res) {
       try {
+        if (!req.query.stock) {
+          return res.status(400).json({ error: 'Stock symbol is required' });
+        }
+
         const stocks = Array.isArray(req.query.stock) ? req.query.stock : [req.query.stock];
         const like = req.query.like === 'true';
         const anonymizedIP = anonymizeIP(req.ip);
@@ -44,7 +48,13 @@ module.exports = function (app) {
         // Function to get stock data
         async function getStockData(symbol) {
           try {
-            const response = await axios.get(`https://stock-price-checker-proxy.freecodecamp.rocks/v1/stock/${symbol}/quote`);
+            if (!symbol) {
+              throw new Error('Stock symbol is required');
+            }
+
+            const upperSymbol = symbol.toUpperCase();
+            const response = await axios.get(`https://stock-price-checker-proxy.freecodecamp.rocks/v1/stock/${upperSymbol}/quote`);
+            
             // Ensure price is a valid number
             let price = 0;
             if (response.data) {
@@ -55,21 +65,26 @@ module.exports = function (app) {
             }
             
             // Handle likes with anonymized IP
-            if (!global.stockLikes.has(symbol)) {
-              global.stockLikes.set(symbol, new Set());
+            if (!global.stockLikes.has(upperSymbol)) {
+              global.stockLikes.set(upperSymbol, new Set());
             }
             
-            if (like && !global.stockLikes.get(symbol).has(anonymizedIP)) {
-              global.stockLikes.get(symbol).add(anonymizedIP);
+            if (like && !global.stockLikes.get(upperSymbol).has(anonymizedIP)) {
+              global.stockLikes.get(upperSymbol).add(anonymizedIP);
             }
             
             return {
-              stock: symbol.toUpperCase(),
+              stock: upperSymbol,
               price: price,
-              likes: global.stockLikes.get(symbol).size
+              likes: global.stockLikes.get(upperSymbol).size
             };
           } catch (error) {
-            throw new Error(`Error fetching stock data for ${symbol}`);
+            console.error(`Error fetching stock data for ${symbol}:`, error.message);
+            return {
+              stock: symbol.toUpperCase(),
+              price: 0,
+              likes: 0
+            };
           }
         }
 
@@ -87,8 +102,8 @@ module.exports = function (app) {
           ]);
           
           // Calculate relative likes
-          const stock1Likes = stock1Data.likes;
-          const stock2Likes = stock2Data.likes;
+          const stock1Likes = stock1Data.likes || 0;
+          const stock2Likes = stock2Data.likes || 0;
           
           const stockData = [
             { 
