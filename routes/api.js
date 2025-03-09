@@ -37,9 +37,28 @@ module.exports = function (app) {
             }
 
             const upperSymbol = symbol.toUpperCase();
+            
+            // Get stock price from API
             const response = await axios.get(`https://stock-price-checker-proxy.freecodecamp.rocks/v1/stock/${upperSymbol}/quote`);
             
-            // Handle likes with anonymized IP
+            // Parse the price from response
+            let price = 0;
+            if (response && response.data) {
+              if (typeof response.data === 'number') {
+                price = response.data;
+              } else if (typeof response.data === 'string') {
+                price = parseFloat(response.data);
+              } else if (response.data.latestPrice) {
+                price = response.data.latestPrice;
+              }
+            }
+
+            // Ensure price is a valid number
+            if (isNaN(price)) {
+              price = 0;
+            }
+            
+            // Handle likes
             if (!global.stockLikes.has(upperSymbol)) {
               global.stockLikes.set(upperSymbol, new Set());
             }
@@ -47,19 +66,16 @@ module.exports = function (app) {
             if (like && !global.stockLikes.get(upperSymbol).has(anonymizedIP)) {
               global.stockLikes.get(upperSymbol).add(anonymizedIP);
             }
+
+            const likes = global.stockLikes.get(upperSymbol).size;
             
             return {
               stock: upperSymbol,
-              price: 786.90,  // Using the expected price from your example
-              likes: global.stockLikes.get(upperSymbol).size
+              price: price,
+              likes: likes
             };
           } catch (error) {
-            console.error(`Error fetching stock data for ${symbol}:`, error.message);
-            return {
-              stock: symbol.toUpperCase(),
-              price: 786.90,  // Using the expected price from your example
-              likes: global.stockLikes.has(symbol.toUpperCase()) ? global.stockLikes.get(symbol.toUpperCase()).size : 0
-            };
+            throw new Error(`Error fetching stock data for ${symbol}: ${error.message}`);
           }
         }
 
@@ -71,29 +87,29 @@ module.exports = function (app) {
         
         // Handle stock comparison (2 stocks)
         if (stocks.length === 2) {
-          const [stock1Data, stock2Data] = await Promise.all([
-            getStockData(stocks[0]),
-            getStockData(stocks[1])
-          ]);
-          
-          // Calculate relative likes
-          const stock1Likes = stock1Data.likes || 0;
-          const stock2Likes = stock2Data.likes || 0;
-          
-          const stockData = [
-            { 
-              stock: stock1Data.stock,
-              price: stock1Data.price,
-              rel_likes: stock1Likes - stock2Likes
-            },
-            { 
-              stock: stock2Data.stock,
-              price: stock2Data.price,
-              rel_likes: stock2Likes - stock1Likes
-            }
-          ];
-          
-          return res.json({ stockData });
+          try {
+            const [stock1Data, stock2Data] = await Promise.all([
+              getStockData(stocks[0]),
+              getStockData(stocks[1])
+            ]);
+            
+            const stockData = [
+              { 
+                stock: stock1Data.stock,
+                price: stock1Data.price,
+                rel_likes: stock1Data.likes - stock2Data.likes
+              },
+              { 
+                stock: stock2Data.stock,
+                price: stock2Data.price,
+                rel_likes: stock2Data.likes - stock1Data.likes
+              }
+            ];
+            
+            return res.json({ stockData });
+          } catch (error) {
+            throw new Error('Error comparing stocks: ' + error.message);
+          }
         }
 
         res.status(400).json({ error: 'Invalid number of stocks provided' });
