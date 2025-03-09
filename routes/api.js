@@ -32,29 +32,8 @@ module.exports = function (app) {
         // Function to get stock data
         async function getStockData(symbol) {
           try {
-            if (!symbol) {
-              throw new Error('Stock symbol is required');
-            }
-
             const upperSymbol = symbol.toUpperCase();
-            
-            // Get stock price from API
             const response = await axios.get(`https://stock-price-checker-proxy.freecodecamp.rocks/v1/stock/${upperSymbol}/quote`);
-            
-            // Parse the price from response
-            let price = 0;
-            if (response && response.data) {
-              if (typeof response.data === 'number') {
-                price = response.data;
-              } else if (typeof response.data === 'string') {
-                price = parseFloat(response.data);
-              }
-            }
-
-            // Ensure price is a valid number
-            if (isNaN(price)) {
-              price = 0;
-            }
             
             // Handle likes
             if (!global.stockLikes.has(upperSymbol)) {
@@ -67,14 +46,14 @@ module.exports = function (app) {
 
             return {
               stock: upperSymbol,
-              price: price,
+              price: response.data,
               likes: global.stockLikes.get(upperSymbol).size
             };
           } catch (error) {
             console.error(`Error fetching stock data for ${symbol}:`, error.message);
             return {
               stock: symbol.toUpperCase(),
-              price: 0,
+              price: null,
               likes: global.stockLikes.has(symbol.toUpperCase()) ? global.stockLikes.get(symbol.toUpperCase()).size : 0
             };
           }
