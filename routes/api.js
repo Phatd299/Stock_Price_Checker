@@ -1,17 +1,45 @@
 'use strict';
 
 const axios = require('axios');
+const crypto = require('crypto');
 
-// Memory store for likes
-const stockLikes = new Map();
+// Make stockLikes global for testing purposes
+if (!global.stockLikes) {
+  global.stockLikes = new Map();
+}
+
+// Function to anonymize IP address
+function anonymizeIP(ip) {
+  // Create a hash of the IP using SHA-256
+  return crypto.createHash('sha256')
+    .update(ip + process.env.SECRET || 'default-secret')
+    .digest('hex')
+    .slice(0, 16); // Take first 16 characters of hash for shorter storage
+}
 
 module.exports = function (app) {
+  // Add new endpoint to view likes data
+  app.route('/api/stock-likes-data')
+    .get(function (req, res) {
+      const likesData = {};
+      global.stockLikes.forEach((value, key) => {
+        likesData[key] = {
+          totalLikes: value.size,
+          anonymousIPs: Array.from(value)
+        };
+      });
+      res.json({
+        totalStocks: global.stockLikes.size,
+        stocksData: likesData
+      });
+    });
+
   app.route('/api/stock-prices')
     .get(async function (req, res) {
       try {
         const stocks = Array.isArray(req.query.stock) ? req.query.stock : [req.query.stock];
         const like = req.query.like === 'true';
-        const ip = req.ip;
+        const anonymizedIP = anonymizeIP(req.ip);
 
         // Function to get stock data
         async function getStockData(symbol) {
@@ -19,19 +47,19 @@ module.exports = function (app) {
             const response = await axios.get(`https://stock-price-checker-proxy.freecodecamp.rocks/v1/stock/${symbol}/quote`);
             const price = response.data;
             
-            // Handle likes
-            if (!stockLikes.has(symbol)) {
-              stockLikes.set(symbol, new Set());
+            // Handle likes with anonymized IP
+            if (!global.stockLikes.has(symbol)) {
+              global.stockLikes.set(symbol, new Set());
             }
             
-            if (like && !stockLikes.get(symbol).has(ip)) {
-              stockLikes.get(symbol).add(ip);
+            if (like && !global.stockLikes.get(symbol).has(anonymizedIP)) {
+              global.stockLikes.get(symbol).add(anonymizedIP);
             }
             
             return {
               stock: symbol.toUpperCase(),
               price: price,
-              likes: stockLikes.get(symbol).size
+              likes: global.stockLikes.get(symbol).size
             };
           } catch (error) {
             throw new Error(`Error fetching stock data for ${symbol}`);
