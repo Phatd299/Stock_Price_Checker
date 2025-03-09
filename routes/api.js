@@ -35,6 +35,22 @@ module.exports = function (app) {
             const upperSymbol = symbol.toUpperCase();
             const response = await axios.get(`https://stock-price-checker-proxy.freecodecamp.rocks/v1/stock/${upperSymbol}/quote`);
             
+            // Ensure price is a number
+            let price = 0;
+            if (response.data) {
+              // Try to convert the response to a number
+              price = Number(response.data);
+              // If conversion failed (NaN), try to parse it as a string
+              if (isNaN(price)) {
+                try {
+                  const parsed = JSON.parse(response.data);
+                  price = Number(parsed.latestPrice || 0);
+                } catch (e) {
+                  price = 0;
+                }
+              }
+            }
+            
             // Handle likes
             if (!global.stockLikes.has(upperSymbol)) {
               global.stockLikes.set(upperSymbol, new Set());
@@ -44,17 +60,19 @@ module.exports = function (app) {
               global.stockLikes.get(upperSymbol).add(anonymizedIP);
             }
 
+            const likes = Number(global.stockLikes.get(upperSymbol).size);
+
             return {
               stock: upperSymbol,
-              price: response.data,
-              likes: global.stockLikes.get(upperSymbol).size
+              price: price,
+              likes: likes
             };
           } catch (error) {
             console.error(`Error fetching stock data for ${symbol}:`, error.message);
             return {
               stock: symbol.toUpperCase(),
-              price: null,
-              likes: global.stockLikes.has(symbol.toUpperCase()) ? global.stockLikes.get(symbol.toUpperCase()).size : 0
+              price: 0,
+              likes: Number(global.stockLikes.has(symbol.toUpperCase()) ? global.stockLikes.get(symbol.toUpperCase()).size : 0)
             };
           }
         }
@@ -75,13 +93,13 @@ module.exports = function (app) {
           const stockData = [
             { 
               stock: stock1Data.stock,
-              price: stock1Data.price,
-              rel_likes: stock1Data.likes - stock2Data.likes
+              price: Number(stock1Data.price),
+              rel_likes: Number(stock1Data.likes - stock2Data.likes)
             },
             { 
               stock: stock2Data.stock,
-              price: stock2Data.price,
-              rel_likes: stock2Data.likes - stock1Data.likes
+              price: Number(stock2Data.price),
+              rel_likes: Number(stock2Data.likes - stock1Data.likes)
             }
           ];
           
